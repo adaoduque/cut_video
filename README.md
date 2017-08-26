@@ -1,4 +1,4 @@
-Cut Vídeo 1.0 <br />
+Cut Vídeo 1.1 <br />
 <br />
 Eu nunca gostei de baixar um show de uma banda bacana e converter o arquivo do vídeo para mp3
 virando uma musica gigante e quando eu queria repetir uma faixa, era é porre ficar clicando na progress bar 
@@ -13,9 +13,9 @@ O script lê esse arquivo e corta o vídeo no tempo certo de cada faixa, com bas
 A versão atual do script ainda não baixa o vídeo, em breve fara. <br />
 <br />
 Como usar: <br />
-Requer: ffmpeg instalado <br />
+Requer: ffmpeg e youtube-dl instalado <br />
 1: Inicie o script com: ./cut_video.sh <br />
-2: Informe o path para o arquivo de vídeo que deseja cortar <br />
+2: Informe o path para o arquivo de vídeo que deseja cortar ou a URL do vídeo para download <br />
 3: Aguarde o script finalizar <br />
 <br />
 <br />
