@@ -1,6 +1,6 @@
 #!/bin/bash
 loading() {
-    chars="/-\|"
+    local chars="/-\|"
     while :; do
       for (( i=0; i<${#chars}; i++ )); do
         sleep 0.5
@@ -9,17 +9,19 @@ loading() {
     done
 }
 
-showMessage() {
+task() {
     echo -e "########### Convert your videos to mp3 with time flag ########### \n"
-    echo -e "Enter file path to video \n"
+    echo -e "Choose one option \n"
+    echo -e "1: Download video from youtube and convert it to mp3 \n"
+    echo -e "2: Convert video downloaded only \n"
     return 1;
 }
 
 function convertToMp3() {
     #Get filename
-    fileName=$1;
+    local fileName=$1;
     #Get path to video file
-    fileNameVideo=$2;
+    local fileNameVideo=$2;
 
     #Convert to mp3 Bitrate Encoding (VBR)
     ffmpeg -y -i "$fileNameVideo" -vn \
@@ -29,24 +31,138 @@ function convertToMp3() {
 
 function getTimeElapsedVideo() {
     #Get path video
-    video=$1
+    local video=$1
     #Getting max time length video in format HH:MM:SS
-    totalTime=$( ffmpeg -i "$video" 2>&1 | grep Duration | awk '{print $2}' | tr -d ,);
+    local totalTime=$( ffmpeg -i "$video" 2>&1 | grep Duration | awk '{print $2}' | tr -d ,);
     #return it
     echo $( echo $totalTime | cut -d "." -f 1 );
 }
 
-time2Second(){
+function time2Second(){
     #Define local variable 
     local T=$1;
     echo $((10#${T:0:2} * 3600 + 10#${T:3:2} * 60 + 10#${T:6:2})) 
 }
 
-#Checks if ffmped is installed
+
+#Check if ffmped is installed
 command -v ffmpeg >/dev/null 2>&1 || { echo >&2 "Require ffmpeg, but it's not installed. Aborting."; exit 1; }
 
-#Read file and get line until new break line and alloc it array lines
-eadarray lines < time.ini
+#Check if youtube-dl is installed
+command -v youtube-dl >/dev/null 2>&1 || { echo >&2 "Require youtube-dl, but it's not installed. Aborting."; exit 1; }
+
+#Check if curl is installed
+command -v curl >/dev/null 2>&1 || { echo >&2 "Require curl, but it's not installed. Aborting."; exit 1; }
+
+#Check if file time.ini exists
+if [ ! -f "time.ini" ]; then
+    #Show message
+    echo -e "\n\nError: file time.ini doesn't exist. Aborting"; exit 1;
+fi;
+
+#Create dir to save all files converted
+error=$( mkdir -p files 2>&1 );
+
+#Checks if command mkdir return any error
+if [ $? -ne 0 ]; then    
+    #Show error and exit script
+    echo $error; exit 1;
+fi;
+
+#Flag to exist or continue while
+finished=0
+
+#Choose task
+task
+
+#Get file vídeo for process
+while [ $finished -eq 0 ]
+do
+
+    #Read data entry
+    read optionTask;
+
+    #Check option
+    if [ "$optionTask" -eq "1" ]; then
+        #Show message
+        echo "Enter URL to download video";
+
+        #Read url to download video
+        read URLVIDEO
+        
+        #Check url and get status HTTP. Expected status 200
+        status=$(curl -s --head -w %{http_code} "$URLVIDEO" -o /dev/null);
+
+        #Is valid ?
+        if [ "$status" -ne "200" ]; then
+            #Show error and exit script
+            echo "Url is broken. Aborting"; exit 1;
+        fi;
+
+        echo "Download video, please wait";
+
+        #Download video
+        youtube-dl --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --merge-output-format mp4 "$URLVIDEO";
+
+        #Get filename video
+        filename=$(youtube-dl --no-check-certificate --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO");
+
+        #Set filename
+        fileVideo=$filename;
+
+        #Get extension vídeo
+        extension="${fileVideo##*.}"        
+
+        #Exit while
+        finished=1;
+
+    elif [ "$optionTask" -eq "2" ];  then
+
+        echo "Enter path to file"
+
+        #Read data entry
+        read fileVideo;
+
+        #Check if file entry exists
+        if [ -f "$fileVideo" ]; then
+
+            #Get extension vídeo
+            extension="${fileVideo##*.}"
+
+            #Exists, but file vídeo supported ?
+            if [[ ! "$extension" =~ (mp4|avi|mkv) ]]; then
+                #Show message
+                echo -e "\n\nError: Supported files: mp4, avi, mkv\n. Aborting"; exit 1;
+            fi;
+        else
+            #File doesn't exists, error, aborting
+            echo -e "\n\nError: Invalid file. Aborting"; exit 1;
+        fi
+
+        #Exit while
+        finished=1;
+
+    else
+        #Clear screen
+        clear;
+        echo -e "\n\nError: Invalid option\n";
+        #Print message again
+        task;
+    fi
+done
+
+#Prevent error download file.
+if [ ! -f "$fileVideo" ]; then
+    echo -e "\n\nError: video file doens't exist. Aborting"; exit 1;
+fi;
+
+#Loading
+loading &
+
+#Get PID ID for loading function
+pid=$!
+
+readarray lines < time.ini
 
 #Get length array
 length=${#lines[@]}
@@ -65,63 +181,6 @@ startCut="0";
 endCut="0";
 nameTrack="";
 trackNumber="0";
-
-#Create dir to save all files converted
-error=$( mkdir -p files 2>&1 );
-
-#Checks if command mkdir return any error
-if [ $? -ne 0 ]; then
-
-    #Kill loading
-    kill $pid;
-    
-    #Show error and exit script
-    echo $error; exit 1;
-fi;
-
-finished=0
-
-showMessage
-
-#Get file vídeo for process
-while [ $finished -eq 0 ]
-do
-
-    #Read data entry
-    read fileVideo;
-
-    #Check if file entry exists
-    if [ -f "$fileVideo" ]; then
-
-        #Get extension vídeo
-        extension="${fileVideo##*.}"
-
-        #Exists, but file vídeo supported ?
-        if [[ ! "$extension" =~ (mp4|avi|mkv) ]]; then
-            #Clear screen
-            clear;
-            #Show message
-            echo -e "\n\nError: Supported files: mp4, avi, mkv\n";
-            #Print message again
-            showMessage;
-        else
-            #Finish interation loop, all data checked
-            finished=1;
-        fi;
-    else
-        #Clear screen
-        clear;
-        echo -e "\n\nError: Invalid file\n";
-        #Print message again
-        showMessage;
-    fi
-done
-
-#Loading
-loading &
-
-#Get PID ID for loading function
-pid=$!
 
 #Loop
 for i in `seq 1 $max`
