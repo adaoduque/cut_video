@@ -10,8 +10,6 @@ No arquivo time.ini, insira o número da track, nome e o time onde a mesma inici
 <br />
 O script lê esse arquivo e corta o vídeo no tempo certo de cada faixa, com base nas informacões em time.ini <br />
 <br />
-A versão atual do script ainda não baixa o vídeo, em breve fara. <br />
-<br />
 Como usar: <br />
 Requer: ffmpeg e youtube-dl instalado <br />
 1: Inicie o script com: ./cut_video.sh <br />
