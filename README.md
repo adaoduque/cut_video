@@ -6,9 +6,11 @@ do player e achar o tempo correto da faixa.<br />
 Perder tempo editando o vídeo ? Que nada.<br />
 O Cut Vídeo faz isso dinamicamente e sem transtornos.
 <br />
-No arquivo time.ini, insira o número da track, nome e o time onde a mesma inicia. <br />
+No arquivo tags.ini, insira as Informações referente as tags como title, artist, art cover e etc.
 <br />
-O script lê esse arquivo e corta o vídeo no tempo certo de cada faixa, com base nas informacões em time.ini <br />
+No arquivo time.ini, insira o número da track, nome e o time onde a mesma inicia.
+<br />
+O script lê esse arquivo e corta o vídeo no tempo certo de cada faixa, com base nas Informações em time.ini <br />
 <br />
 Como usar: <br />
 Requer: ffmpeg e youtube-dl instalado <br />

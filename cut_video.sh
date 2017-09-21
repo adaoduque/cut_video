@@ -17,16 +17,62 @@ task() {
     return 1;
 }
 
+#Add art album to file mp3
+function addArtAlbum() {
+    #Get filename mp3
+    local fileMusic=$1;
+    #Get path to filename art album
+    local artAlbum=$2;
+    local folder="files/";
+
+    ffmpeg -f mp3 -i "$folder$fileMusic" \
+           -i "$artAlbum" \
+           -c copy -map 0:0 -map 1:0 -id3v2_version 3 \
+           -metadata:s:v title="Album cover" \
+           -metadata:s:v comment="Cover (Front)" \
+           "$folder_$fileMusic" &>/dev/null;
+    mv "$folder_$fileMusic" "$folder$fileMusic"
+}
+
+#Add metadata Artist, genere...
+function addMetadata() {
+    #Get filename mp3
+    local fileMusic=$1;
+    local title=$2;
+    local year=$3;
+    local artist=$4;
+    local author=$5;
+    local album=$6;
+    local comment=$7;
+    local track=$8;
+    local genre=$9;
+    local folder="files/";
+
+    #Apply metadata
+    ffmpeg -i "$folder$fileMusic" \
+           -metadata title="$title" \
+           -metadata year="$year" \
+           -metadata artist="$artist" \
+           -metadata author="$author" \
+           -metadata album="$album" \
+           -metadata comment="$comment" \
+           -metadata track="$track" \
+           -metadata genre="$genre" \
+           "$folder_$fileMusic" &>/dev/null;
+    mv "$folder_$fileMusic" "$folder$fileMusic";
+}
+
 function convertToMp3() {
     #Get filename
     local fileName=$1;
     #Get path to video file
     local fileNameVideo=$2;
+    local folder="files/";
 
     #Convert to mp3 Bitrate Encoding (VBR)
-    ffmpeg -y -i "$fileNameVideo" -vn \
+    ffmpeg -y -i "$folder$fileNameVideo" -vn \
            -acodec libmp3lame -ac 2 -qscale:a 4 -ar 48000 \
-            "files/$fileName.mp3" &>/dev/null;
+            "$folder$fileName.mp3" &>/dev/null;
 }
 
 function getTimeElapsedVideo() {
@@ -105,7 +151,7 @@ do
         youtube-dl --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --merge-output-format mp4 "$URLVIDEO";
 
         #Get filename video
-        filename=$(youtube-dl --no-check-certificate --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO");
+        filename=$(youtube-dl --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO");
 
         #Set filename
         fileVideo=$filename;
@@ -181,6 +227,28 @@ startCut="0";
 endCut="0";
 nameTrack="";
 trackNumber="0";
+title="";
+cover="";
+year="";
+artist="";
+author="";
+album="";
+comment="";
+genre="";
+tagsFile="tags.ini";
+
+#Check if tags.ini exists
+if [ -e "$tagsFile" ]; then
+    #Get all tags
+    readarray tags < "tags.ini";
+    cover=$( echo "${tags[0]}" | cut -d "=" -f 2 );
+    year=$( echo "${tags[1]}" | cut -d "=" -f 2 );
+    artist=$( echo "${tags[2]}" | cut -d "=" -f 2 );
+    author=$( echo "${tags[3]}" | cut -d "=" -f 2 );
+    album=$( echo "${tags[4]}" | cut -d "=" -f 2 );
+    comment=$( echo "${tags[5]}" | cut -d "=" -f 2 );
+    genre=$( echo "${tags[6]}" | cut -d "=" -f 2 );
+fi;
 
 #Loop
 for i in `seq 1 $max`
@@ -216,16 +284,26 @@ do
     echo "Cutting $nameTrack";
 
     #Cutting large file vídeo with parameters startcut and endcut
-    ffmpeg -y -ss "$startCut" -i "$fileVideo" -c copy -t "$finalCut" "files/$trackNumber - $nameTrack.$extension" &>/dev/null;
+    ffmpeg -y -ss "$startCut" -i "$fileVideo" -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
 
     #Send status
     echo "Converting to mp3";
 
     #convert file to mp3
-    convertToMp3 "$trackNumber - $nameTrack" "files/$trackNumber - $nameTrack.$extension"
+    convertToMp3 "$nameTrack" "$nameTrack.$extension";
+
+    echo "Adicionando Meta Tags";
+
+    #Add metadata tags
+    addMetadata "$nameTrack.mp3" "$nameTrack" "$year" "$artist" "$author" "$album" "$comment" "$trackNumber" "$genre";
+
+    echo "Adicionando Art Album";
+
+    #Add art album
+    addArtAlbum "$nameTrack.mp3" "$cover";
 
     #remove file video
-    rm -rf "files/$trackNumber - $nameTrack.$extension"
+    rm -rf "files/$nameTrack.$extension"
     
     #Increment more 3
     lineActive=$((lineActive + 3));
