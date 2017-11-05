@@ -14,7 +14,8 @@ task() {
     echo -e "########### Convert your videos to mp3 with time flag ########### \n"
     echo -e "Choose one option \n"
     echo -e "1: Download video from youtube and convert it to mp3 \n"
-    echo -e "2: Convert video downloaded only \n"
+    echo -e "2: Download video audio only \n"
+    echo -e "3: Convert video downloaded only \n"
     return 1;
 }
 
@@ -122,6 +123,9 @@ finished=0
 #Choose task
 task
 
+#Option to ffmpeg not commom depends optionTask selected
+optionConvert="";
+
 #Get file vídeo for process
 while [ $finished -eq 0 ]
 do
@@ -165,6 +169,38 @@ do
 
     elif [ "$optionTask" -eq "2" ];  then
 
+        #Show message
+        echo "Enter URL to download audio";
+
+        #Read url to download video
+        read URLVIDEO
+        
+        #Check url and get status HTTP. Expected status 200
+        status=$(curl -s --head -w %{http_code} "$URLVIDEO" -o /dev/null);
+
+        #Is valid ?
+        if [ "$status" -ne "200" ]; then
+            #Show error and exit script
+            echo "Url is broken. Aborting"; exit 1;
+        fi;
+
+        echo "Download video, please wait";
+
+        youtube-dl --no-check-certificate -f 'bestaudio[ext=m4a]/bestaudio' --output "%(title)s.%(ext)s" --merge-output-format m4a "$URLVIDEO";
+        
+        filename=$(youtube-dl --no-check-certificate -f 'bestaudio[ext=m4a]/bestaudio' --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO");        
+
+        #Set filename
+        fileVideo=$filename;
+
+        #Get extension vídeo
+        extension="${fileVideo##*.}"
+
+        #Exit while
+        finished=1;
+
+    elif [ "$optionTask" -eq "3" ];  then
+
         echo "Enter path to file"
 
         #Read data entry
@@ -177,14 +213,14 @@ do
             extension="${fileVideo##*.}"
 
             #Exists, but file vídeo supported ?
-            if [[ ! "$extension" =~ (mp4|avi|mkv) ]]; then
+            if [[ ! "$extension" =~ (mp4|avi|mkv|m4a) ]]; then
                 #Show message
-                echo -e "\n\nError: Supported files: mp4, avi, mkv\n. Aborting"; exit 1;
+                echo -e "\n\nError: Supported files: mp4, avi, mkv and m4a\n. Aborting"; exit 1;
             fi;
         else
             #File doesn't exists, error, aborting
             echo -e "\n\nError: Invalid file. Aborting"; exit 1;
-        fi
+        fi        
 
         #Exit while
         finished=1;
@@ -198,10 +234,19 @@ do
     fi
 done
 
+#Verify if it is m4a
+if [[ "$extension" = "m4a" ]]; then
+    #Add parameter -vn because it is m4a file.
+    #-vn means that only the audio stream is copied from the file.
+    optionConvert=" -vn ";
+fi;
+
 #Prevent error download file.
 if [ ! -f "$fileVideo" ]; then
     echo -e "\n\nError: video file doens't exist. Aborting"; exit 1;
 fi;
+
+#echo $fileVideo; exit;
 
 #Loading
 loading &
@@ -261,6 +306,8 @@ else
     tagsFileExist="0";
 fi;
 
+#echo $fileVideo; exit;
+
 #Loop
 for i in `seq 1 $max`
 do
@@ -292,13 +339,13 @@ do
         trackNumber=$( echo "${lines[$((lineActive))]}" | cut -d "=" -f 2 );
 
         #Get track name
-        nameTrack=$( echo "${lines[$((lineActive + 1))]}" | cut -d "=" -f 2 );
+        nameTrack=$( echo "${lines[$((lineActive + 1))]}" | sed 's/|=.*/ /;s/name=/ /' );
 
         #Send status
         echo "Cutting $nameTrack";
 
         #Cutting large file vídeo with parameters startcut and endcut
-        ffmpeg -y -ss "$startCut" -i "$fileVideo" -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
+        ffmpeg -y -ss "$startCut" -i "$fileVideo" $optionConvert -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
 
         #Send status
         echo "Converting to mp3";
