@@ -2,10 +2,11 @@
 loading() {
     local chars="/-\|"
     while :; do
+      tput sc
       for (( i=0; i<${#chars}; i++ )); do
-        sleep 0.5
+        sleep 0.5        
         echo -en "${chars:$i:1}" "\r"
-      done
+      done      
     done
 }
 
@@ -25,7 +26,7 @@ function addArtAlbum() {
     local artAlbum=$2;
     local folder="files/";
 
-    ffmpeg -f mp3 -i "$folder$fileMusic" \
+    ffmpeg -y -f mp3 -i "$folder$fileMusic" \
            -i "$artAlbum" \
            -c copy -map 0:0 -map 1:0 -id3v2_version 3 \
            -metadata:s:v title="Album cover" \
@@ -49,7 +50,7 @@ function addMetadata() {
     local folder="files/";
 
     #Apply metadata
-    ffmpeg -i "$folder$fileMusic" \
+    ffmpeg -y -i "$folder$fileMusic" \
            -metadata title="$title" \
            -metadata year="$year" \
            -metadata artist="$artist" \
@@ -235,10 +236,13 @@ author="";
 album="";
 comment="";
 genre="";
+coverExist="1";
+tagsFileExist="1";
 tagsFile="tags.ini";
 
 #Check if tags.ini exists
 if [ -e "$tagsFile" ]; then
+
     #Get all tags
     readarray tags < "tags.ini";
     cover=$( echo "${tags[0]}" | cut -d "=" -f 2 );
@@ -248,6 +252,13 @@ if [ -e "$tagsFile" ]; then
     album=$( echo "${tags[4]}" | cut -d "=" -f 2 );
     comment=$( echo "${tags[5]}" | cut -d "=" -f 2 );
     genre=$( echo "${tags[6]}" | cut -d "=" -f 2 );
+
+    #Check if file cover exist
+    if [ ! -f "$cover" ]; then
+        coverExist="0";
+    fi;
+else
+    tagsFileExist="0";
 fi;
 
 #Loop
@@ -271,44 +282,65 @@ do
         endCut=$( time2Second $( echo "${lines[$((lineActive + 5))]}" | cut -d "=" -f 2 ) );
     fi;
 
-    #Calculate diferente between time start song and time next song or 
-    finalCut=$(( endCut - startCut ))
 
-    #Get track number
-    trackNumber=$( echo "${lines[$((lineActive))]}" | cut -d "=" -f 2 );
+    if [ \( ! -z "${startCut// /}" \) -a \( ! -z "${endCut// /}" \) ]; then
 
-    #Get track name
-    nameTrack=$( echo "${lines[$((lineActive + 1))]}" | cut -d "=" -f 2 );
+        #Calculate diferente between time start song and time next song or 
+        finalCut=$(( endCut - startCut ))
 
-    #Send status
-    echo "Cutting $nameTrack";
+        #Get track number
+        trackNumber=$( echo "${lines[$((lineActive))]}" | cut -d "=" -f 2 );
 
-    #Cutting large file vídeo with parameters startcut and endcut
-    ffmpeg -y -ss "$startCut" -i "$fileVideo" -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
+        #Get track name
+        nameTrack=$( echo "${lines[$((lineActive + 1))]}" | cut -d "=" -f 2 );
 
-    #Send status
-    echo "Converting to mp3";
+        #Send status
+        echo "Cutting $nameTrack";
 
-    #convert file to mp3
-    convertToMp3 "$nameTrack" "$nameTrack.$extension";
+        #Cutting large file vídeo with parameters startcut and endcut
+        ffmpeg -y -ss "$startCut" -i "$fileVideo" -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
 
-    echo "Adicionando Meta Tags";
+        #Send status
+        echo "Converting to mp3";
 
-    #Add metadata tags
-    addMetadata "$nameTrack.mp3" "$nameTrack" "$year" "$artist" "$author" "$album" "$comment" "$trackNumber" "$genre";
+        #convert file to mp3
+        convertToMp3 "$nameTrack" "$nameTrack.$extension";
 
-    echo "Adicionando Art Album";
+        #Check if tags file image exist
+        if [ "$tagsFileExist" -eq "1" ]; then
 
-    #Add art album
-    addArtAlbum "$nameTrack.mp3" "$cover";
+            echo "Adicionando Meta Tags";
 
-    #remove file video
-    rm -rf "files/$nameTrack.$extension"
-    
-    #Increment more 3
-    lineActive=$((lineActive + 3));
+            #Add metadata tags
+            addMetadata "$nameTrack.mp3" "$nameTrack" "$year" "$artist" "$author" "$album" "$comment" "$trackNumber" "$genre";
+
+            #Check if cover file exist
+            if [ "$coverExist" -eq "1" ]; then
+
+                echo "Adicionando Art Album";
+
+                #Add art album
+                addArtAlbum "$nameTrack.mp3" "$cover";
+
+            fi;
+
+        fi;
+
+        #remove file video
+        rm -rf "files/$nameTrack.$extension"
+        
+        #Increment more 3
+        lineActive=$((lineActive + 3));
+
+    fi;
 
 done
+
+
+if [ \( "$tagsFileExist" -eq "1" \) -a \( "$coverExist" -eq "0" \) ]; then
+    tput rc
+    echo -e "\nForam adicionados somente as TAGS como artista, album e etc. \nA capa do album não foi adicionada porque o arquivo não existe\n\n"
+fi;
 
 echo "Finish!!!"
 
