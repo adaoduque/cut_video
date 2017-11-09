@@ -1,0 +1,37 @@
+{
+	"tags" : {
+		"cover"  : "lp_live.jpg",
+		"year"   : "2001",
+		"artist" : "Linkin Park",
+		"author" : "Linkin Park",
+		"album"  : "Live House Of Blues 2001",
+		"comment": "",
+		"genre"  : "New Metal"
+	},
+	"tracks" : {
+		"1" : {
+			"name" : "Intro",
+			"tIni" : "00:00:00",
+			"tEnd" : "00:01:11",
+			"track" : "1"
+		},
+		"2" : {
+			"name" : "With You",
+			"tIni" : "00:01:12",
+			"tEnd" : "00:04:32",
+			"track" : "2"
+		},
+		"3" : {
+			"name" : "In The End",
+			"tIni" : "00:31:56",
+			"tEnd" : "00:35:19",
+			"track" : "13"
+		},
+		"4" : {
+			"name" : "Points Of Authority (w Ryu and Tak)",
+			"tIni" : "00:14:32",
+			"tEnd" : "00:18:17",
+			"track" : "7"
+		}	
+	}
+}
