@@ -1,4 +1,4 @@
-Cut Vídeo 1.2 <br />
+Cut Vídeo 1.3 <br />
 <br />
 Eu nunca gostei de baixar um show de uma banda bacana e converter o arquivo do vídeo para mp3
 virando uma musica gigante e quando eu queria repetir uma faixa, era é porre ficar clicando na progress bar 
