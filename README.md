@@ -6,14 +6,12 @@ do player e achar o tempo correto da faixa.<br />
 Perder tempo editando o vídeo ? Que nada.<br />
 O Cut Vídeo faz isso dinamicamente e sem transtornos.
 <br />
-No arquivo tags.ini, insira as Informações referente as tags como title, artist, art cover e etc.
+Configure as tags ID3 e as faixas no arquivo conf.json
 <br />
-No arquivo time.ini, insira o número da track, nome e o time onde a mesma inicia.
-<br />
-O script lê esse arquivo e corta o vídeo no tempo certo de cada faixa, com base nas Informações em time.ini <br />
+Agora é possível baixar o vídeo ou audio sem baixar o arquivo completo
 <br />
 Como usar: <br />
-Requer: ffmpeg e youtube-dl instalado <br />
+Requer: ffmpeg, jq e youtube-dl instalado <br />
 1: Inicie o script com: ./cut_video.sh <br />
 2: Informe o path para o arquivo de vídeo que deseja cortar ou a URL do vídeo para download <br />
 3: Aguarde o script finalizar <br />
