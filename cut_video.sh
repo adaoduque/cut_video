@@ -1,21 +1,38 @@
 #!/bin/bash
+_jq() {
+    echo ${row} | base64 --decode | jq -r ${1}
+}
+
+checkUrl() {
+    local urlVideo=$1;
+    #Check url and get status HTTP. Expected status 200
+    status=$(curl -s --head -w %{http_code} "$urlVideo" -o /dev/null);
+
+    #Is valid ?
+    if [ "$status" -ne "200" ]; then
+        #Show error and exit script
+        echo "Url is broken. Aborting"; exit 1;
+    fi;    
+}
+
 loading() {
     local chars="/-\|"
     while :; do
-      tput sc
-      for (( i=0; i<${#chars}; i++ )); do
-        sleep 0.5        
-        echo -en "${chars:$i:1}" "\r"
-      done      
+        for (( i=0; i<${#chars}; i++ )); do
+            sleep 0.5        
+            echo -en "${chars:$i:1}" "\r"
+        done      
     done
 }
 
 task() {
     echo -e "########### Convert your videos to mp3 with time flag ########### \n"
     echo -e "Choose one option \n"
-    echo -e "1: Download video from youtube and convert it to mp3 \n"
-    echo -e "2: Download video audio only \n"
-    echo -e "3: Convert video downloaded only \n"
+    echo -e "1: Download video and convert it to mp3 \n"
+    echo -e "2: Download audio and convert it to mp3 \n"
+    echo -e "3: Download only video \n"
+    echo -e "4: Download part of video or audio without full download video/audio \n"
+    echo -e "5: Convert video downloaded only \n"
     return 1;
 }
 
@@ -92,7 +109,6 @@ function time2Second(){
     echo $((10#${T:0:2} * 3600 + 10#${T:3:2} * 60 + 10#${T:6:2})) 
 }
 
-
 #Check if ffmped is installed
 command -v ffmpeg >/dev/null 2>&1 || { echo >&2 "Require ffmpeg, but it's not installed. Aborting."; exit 1; }
 
@@ -102,11 +118,16 @@ command -v youtube-dl >/dev/null 2>&1 || { echo >&2 "Require youtube-dl, but it'
 #Check if curl is installed
 command -v curl >/dev/null 2>&1 || { echo >&2 "Require curl, but it's not installed. Aborting."; exit 1; }
 
-#Check if file time.ini exists
-if [ ! -f "time.ini" ]; then
+#Check if jq is installed
+command -v jq >/dev/null 2>&1 || { echo >&2 "Require jq, but it's not installed. Aborting."; exit 1; }
+
+#Check if file conf.json exists
+if [ ! -f "conf.json" ]; then
     #Show message
-    echo -e "\n\nError: file time.ini doesn't exist. Aborting"; exit 1;
+    echo -e "\n\nError: file conf.json doesn't exist. Aborting"; exit 1;
 fi;
+
+Data=$( cat conf.json );
 
 #Create dir to save all files converted
 error=$( mkdir -p files 2>&1 );
@@ -118,10 +139,13 @@ if [ $? -ne 0 ]; then
 fi;
 
 #Flag to exist or continue while
-finished=0
+finished=0;
+
+#Flag to identify download part video or audio without download it complete
+isPart=0
 
 #Choose task
-task
+task;
 
 #Option to ffmpeg not commom depends optionTask selected
 optionConvert="";
@@ -129,7 +153,6 @@ optionConvert="";
 #Get file vídeo for process
 while [ $finished -eq 0 ]
 do
-
     #Read data entry
     read optionTask;
 
@@ -166,9 +189,7 @@ do
 
         #Exit while
         finished=1;
-
     elif [ "$optionTask" -eq "2" ];  then
-
         #Show message
         echo "Enter URL to download audio";
 
@@ -198,9 +219,67 @@ do
 
         #Exit while
         finished=1;
-
     elif [ "$optionTask" -eq "3" ];  then
+        #Show message
+        echo "Enter URL to download video";
 
+        #Read url to download video
+        read URLVIDEO
+        
+        #Check url and get status HTTP. Expected status 200
+        status=$(curl -s --head -w %{http_code} "$URLVIDEO" -o /dev/null);
+
+        #Is valid ?
+        if [ "$status" -ne "200" ]; then
+            #Show error and exit script
+            echo "Url is broken. Aborting"; exit 1;
+        fi;
+
+        echo "Download video, please wait";
+
+        #Download video
+        youtube-dl --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --merge-output-format mp4 "$URLVIDEO";
+
+        #Get filename video
+        filename=$(youtube-dl --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO");
+
+        #Set filename
+        fileVideo=$filename;
+
+        #Get extension vídeo
+        extension="${fileVideo##*.}"        
+
+        #Exit while
+        finished=1;
+    elif [ "$optionTask" -eq "4" ];  then
+        isPart=1;
+        isFinished=0;
+        optSelected=""
+        selection="";
+        finished=1;
+        isWVideo="video";
+        while [ $isFinished -eq 0 ]
+        do
+            echo "#### $selection ######";
+            echo -e "\n1: Only Video\n";
+            echo "2: Only Audio";
+            #Read data entry
+            read optionTask;
+
+            if [ "$optionTask" -eq "1" ]; then
+                isFinished=1;
+                optSelected=1;
+            elif [ "$optionTask" -eq "2" ];  then
+                isFinished=1;
+                optSelected=2;
+                isWVideo="audio";
+            else
+                #Clear screen
+                clear;
+                selection="Invalid option, try again";
+            fi                
+        done;
+    elif [ "$optionTask" -eq "5" ];  then
         echo "Enter path to file"
 
         #Read data entry
@@ -224,7 +303,6 @@ do
 
         #Exit while
         finished=1;
-
     else
         #Clear screen
         clear;
@@ -232,21 +310,7 @@ do
         #Print message again
         task;
     fi
-done
-
-#Verify if it is m4a
-if [[ "$extension" = "m4a" ]]; then
-    #Add parameter -vn because it is m4a file.
-    #-vn means that only the audio stream is copied from the file.
-    optionConvert=" -vn ";
-fi;
-
-#Prevent error download file.
-if [ ! -f "$fileVideo" ]; then
-    echo -e "\n\nError: video file doens't exist. Aborting"; exit 1;
-fi;
-
-#echo $fileVideo; exit;
+done;
 
 #Loading
 loading &
@@ -254,26 +318,6 @@ loading &
 #Get PID ID for loading function
 pid=$!
 
-readarray lines < time.ini
-
-#Get length array
-length=${#lines[@]}
-
-#Get length total lines divided by 3 to process in loop for
-qtdMinLines=$((length / 3))
-
-#Set line init 0. Array initialize in index 0
-lineActive=0;
-
-#Get max line to process
-max=$qtdMinLines;
-
-#Initialize variables
-startCut="0";
-endCut="0";
-nameTrack="";
-trackNumber="0";
-title="";
 cover="";
 year="";
 artist="";
@@ -282,114 +326,129 @@ album="";
 comment="";
 genre="";
 coverExist="1";
-tagsFileExist="1";
-tagsFile="tags.ini";
-
-#Check if tags.ini exists
-if [ -e "$tagsFile" ]; then
-
-    #Get all tags
-    readarray tags < "tags.ini";
-    cover=$( echo "${tags[0]}" | cut -d "=" -f 2 );
-    year=$( echo "${tags[1]}" | cut -d "=" -f 2 );
-    artist=$( echo "${tags[2]}" | cut -d "=" -f 2 );
-    author=$( echo "${tags[3]}" | cut -d "=" -f 2 );
-    album=$( echo "${tags[4]}" | cut -d "=" -f 2 );
-    comment=$( echo "${tags[5]}" | cut -d "=" -f 2 );
-    genre=$( echo "${tags[6]}" | cut -d "=" -f 2 );
-
+for row in $(echo "${Data}" | jq -r '.tags | @base64'); do  
+    cover=$(_jq '.cover');
+    year=$(_jq '.year');
+    artist=$(_jq '.artist');
+    author=$(_jq '.author');
+    album=$(_jq '.album');
+    comment=$(_jq '.comment');
+    genre=$(_jq '.genre');
     #Check if file cover exist
     if [ ! -f "$cover" ]; then
         coverExist="0";
-    fi;
-else
-    tagsFileExist="0";
-fi;
-
-#echo $fileVideo; exit;
-
-#Loop
-for i in `seq 1 $max`
-do
-
-    #Checks if loop variable is equals, it's final interation loop
-    if [[ $i -eq $max ]]; then
-
-        #Get time start track and convert it to seconds
-        startCut=$( time2Second $( echo "${lines[$((lineActive + 2))]}" | cut -d "=" -f 2 ) );
-
-        #Get time elapsed from vídeo and convert it to seconds
-        endCut=$( time2Second $( getTimeElapsedVideo "$fileVideo" ) );        
-    else
-
-        #Get time start track and convert it to seconds
-        startCut=$( time2Second $( echo "${lines[$((lineActive + 2))]}" | cut -d "=" -f 2 ) );
-
-        #Get time start next song and convert it to seconds
-        endCut=$( time2Second $( echo "${lines[$((lineActive + 5))]}" | cut -d "=" -f 2 ) );
-    fi;
-
-
-    if [ \( ! -z "${startCut// /}" \) -a \( ! -z "${endCut// /}" \) ]; then
-
-        #Calculate diferente between time start song and time next song or 
-        finalCut=$(( endCut - startCut ))
-
-        #Get track number
-        trackNumber=$( echo "${lines[$((lineActive))]}" | cut -d "=" -f 2 );
-
-        #Get track name
-        nameTrack=$( echo "${lines[$((lineActive + 1))]}" | sed 's/|=.*/ /;s/name=/ /' );
-
-        #Send status
-        echo "Cutting $nameTrack";
-
-        #Cutting large file vídeo with parameters startcut and endcut
-        ffmpeg -y -ss "$startCut" -i "$fileVideo" $optionConvert -c copy -t "$finalCut" "files/$nameTrack.$extension" &>/dev/null;
-
-        #Send status
-        echo "Converting to mp3";
-
-        #convert file to mp3
-        convertToMp3 "$nameTrack" "$nameTrack.$extension";
-
-        #Check if tags file image exist
-        if [ "$tagsFileExist" -eq "1" ]; then
-
-            echo "Adicionando Meta Tags";
-
-            #Add metadata tags
-            addMetadata "$nameTrack.mp3" "$nameTrack" "$year" "$artist" "$author" "$album" "$comment" "$trackNumber" "$genre";
-
-            #Check if cover file exist
-            if [ "$coverExist" -eq "1" ]; then
-
-                echo "Adicionando Art Album";
-
-                #Add art album
-                addArtAlbum "$nameTrack.mp3" "$cover";
-
-            fi;
-
-        fi;
-
-        #remove file video
-        rm -rf "files/$nameTrack.$extension"
-        
-        #Increment more 3
-        lineActive=$((lineActive + 3));
-
-    fi;
-
+    fi;    
 done
 
+if [ "$isPart" -eq "1" ]; then
 
-if [ \( "$tagsFileExist" -eq "1" \) -a \( "$coverExist" -eq "0" \) ]; then
-    tput rc
-    echo -e "\nForam adicionados somente as TAGS como artista, album e etc. \nA capa do album não foi adicionada porque o arquivo não existe\n\n"
+    #Show message
+    echo "Enter URL to $isWVideo";
+
+    #Read url to download video
+    read URLVIDEO
+
+    #Check url and get status HTTP. Expected status 200
+    checkUrl "$URLVIDEO";
+
+    echo "Download data essential for $isWVideo, please wait";        
+
+    urlDownloadDirect=$( youtube-dl -g --no-check-certificate -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio' --output "%(title)s.%(ext)s" --get-filename "$URLVIDEO" );
+
+    #Get links
+    video=$( echo $urlDownloadDirect | cut -d " " -f 1 );
+    audio=$( echo $urlDownloadDirect | cut -d " " -f 2 );
+    name="";
+    tIni="";
+    tEnd="";
+
+
+    for row in $(echo "${Data}" | jq -r '.tracks[] | @base64'); do  
+        name=$(_jq '.name');
+        track=$(_jq '.track');
+        staCut=$( time2Second $(_jq '.tIni') );
+        endCut=$( time2Second $(_jq '.tEnd') );
+        finCut=$(( endCut - staCut ))
+
+        echo "Download $name";
+
+        if [ "$optSelected" -eq "1" ]; then
+            ffmpeg -y -ss "$staCut" -i "$video" -c copy -t "$finCut" "files/$name1.mp4"  &>/dev/null;
+            ffmpeg -y -ss "$staCut" -i "$audio" -vn -c copy -t "$finCut" "files/$name.m4a"  &>/dev/null;
+            ffmpeg -y -i "files/$name1.mp4" -i "files/$name.m4a" -c:v copy -c:a copy "files/$name.mp4"  &>/dev/null;
+            rm "files/$name1.mp4" "files/$name.m4a";
+        else
+            ffmpeg -y -ss "$staCut" -i "$audio" -vn -c copy -t "$finCut" "files/$name.m4a"  &>/dev/null;
+            
+            echo "Converting to mp3";
+            convertToMp3 "$name" "$name.m4a";
+
+            echo "Add Meta Tags";
+            #Add metadata tags
+            addMetadata "$name.mp3" "$name" "$year" "$artist" "$author" "$album" "$comment" "$track" "$genre";
+            #Check if cover file exist
+            if [ "$coverExist" -eq "1" ]; then
+                echo "Add Art Album";
+                #Add art album
+                addArtAlbum "$name.mp3" "$cover";
+            fi;
+
+            rm "files/$name.m4a";
+        fi
+       
+    done    
+
+else
+    #Verify if it is m4a
+    if [[ "$extension" = "m4a" ]]; then
+        #Add parameter -vn because it is m4a file.
+        #-vn means that only the audio stream is copied from the file.
+        optionConvert=" -vn ";
+    fi;
+
+    if [ \( "$optionTask" -eq "1" \) -o \( "$optionTask" -eq  "2" \) -o \( "$optionTask" -eq  "3" \) -o \( "$optionTask" -eq  "5" \) ]; then
+        name="";
+        tIni="";
+        tEnd="";
+
+
+        for row in $(echo "${Data}" | jq -r '.tracks[] | @base64'); do  
+            name=$(_jq '.name');
+            track=$(_jq '.track');
+            staCut=$( time2Second $(_jq '.tIni') );
+            endCut=$( time2Second $(_jq '.tEnd') );
+            finCut=$(( endCut - staCut ))
+
+            #Send status
+            echo "Cutting $name";
+
+            #Cutting large file vídeo with parameters startcut and endcut
+            ffmpeg -y -ss "$staCut" -i "$fileVideo" $optionConvert -c copy -t "$finCut" "files/$name.$extension" &>/dev/null;
+
+            #Send status
+            echo "Converting to mp3";
+
+            #convert file to mp3
+            convertToMp3 "$name" "$name.$extension";
+
+            echo "Add Meta Tags";
+            #Add metadata tags
+            addMetadata "$name.mp3" "$name" "$year" "$artist" "$author" "$album" "$comment" "$track" "$genre";
+            #Check if cover file exist
+            if [ "$coverExist" -eq "1" ]; then
+                echo "Add Art Album";
+                #Add art album
+                addArtAlbum "$name.mp3" "$cover";
+            fi;
+
+            rm "files/$name.$extension";
+
+        done;        
+    fi;
+
 fi;
 
-echo "Finish!!!"
+echo "Finish!!!";
 
 #Finish process load
 kill $pid;
